@@ -11,12 +11,6 @@ type Share struct {
 	Y *modular.Int
 }
 
-type Triple struct {
-	A *Share
-	B *Share
-	C *Share
-}
-
 
 func Shares(threshold, total int, raw []byte) ([]*Share, error) {
 
@@ -85,6 +79,25 @@ func (share *Share) Add(shares ...*Share) *Share {
 	return share
 }
 
+func (share *Share) ScalarMul(x *Share, n *modular.Int) *Share {
+	share.X = x.X
+	share.Y = new(modular.Int).Mul(x.Y, n)
+	return share
+}
+
+func (share *Share) ScalarAdd(x *Share, n *modular.Int) *Share {
+	num := new(modular.Int).Add(x.Y, n)
+	share.X = x.X
+	share.Y = num
+	return share
+}
+
+type Triple struct {
+	A *Share
+	B *Share
+	C *Share
+}
+
 func TripleShares(t, n int) ([]*Triple, error) {
 	a, err := modular.RandInt()
 	if err != nil {
@@ -94,7 +107,7 @@ func TripleShares(t, n int) ([]*Triple, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := new(modular.Int).Add(a, b)
+	c := new(modular.Int).Mul(a, b)
 	ashares, err := Shares(t, n, a.Bytes())
 	if err != nil {
 		return nil, err
@@ -152,4 +165,31 @@ func NewBatchedTriples(ten_ks int, t, n int) ([][][]*Triple, error) {
 		i++
 	}
 	return batches, nil
+}
+
+func PrepareMul(x, y *Share, triple *Triple) (*Share, *Share) {
+	neg1 := modular.NewInt(-1)
+	negA := new(Share).ScalarMul(triple.A, neg1)
+	negB := new(Share).ScalarMul(triple.B, neg1)
+	xas := new(Share).Add(x, negA)
+	ybs := new(Share).Add(y, negB)
+	return xas, ybs
+}
+
+func FinishMul(x_a []*Share, y_b []*Share, x, y *Share, triple *Triple) (*Share, error) {
+	epsilon, err := Reconstruct(x_a, len(x_a))
+	if err != nil {
+		return nil, err
+	}
+	rho, err := Reconstruct(y_b, len(y_b))
+	if err != nil {
+		return nil, err
+	}
+	ner := new(modular.Int).Mul(epsilon, rho)
+	ner.Mul(ner, modular.NewInt(-1))
+	term1 := new(Share).ScalarMul(y, epsilon)
+	term2 := new(Share).ScalarMul(x, rho)
+	t3 := new(Share).Add(term1, term2, triple.C)
+	out := new(Share).ScalarAdd(t3, ner)
+	return out, nil
 }
