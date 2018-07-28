@@ -8,8 +8,15 @@ An implementation of Shamir's Secret Sharing Algorithm in Go
     See Contributors.md for a complete list of contributors.  
     Licensed under the MIT License.  
 
+The repo has been changed in a number of ways:
+- Added a modular math package to wrap big.Int and directly do modular reductions
+- Simplified secret sharing to only handle messages under 256 bits leaving chunking of longer messages out (or up to user)
+- Added funtionality to interpolate via vandermonde matrices
+- Added some functions to help with circuit evaluation over (share addition, and beaver triples for multiplicative gates)
+
+
 ## Usage
-Secret sharing is done on byte-strings (smaller than 256-bit finite field of prime order) encoded directly. Shares are pairs of (x,y) points which can reconstruct the polynomial with lagrange polynomial interpolation. The idea of automatically splitting and encoding a larger than 256-bit secret has been completely extracted from the parent package to make it simpler. The same functionality could easily be reapplied on top of this library however.
+Secret sharing is done on byte-strings (smaller than 256-bit finite field of prime order) encoded directly. Shares are pairs of (x,y) points which can reconstruct the polynomial with lagrange polynomial interpolation. Basic splitting and reconstruction:
 
 ```
 shares := shamir.Shares(threshold int, total int, raw []byte) // creates a set of shares
@@ -18,8 +25,8 @@ shamir.Reconstruct(shares []*Share) // combines shares into secret
 
 // This is what the Share struct looks like
 type Share struct {
-    X *big.Int
-    Y *big.Int
+    X *modular.Int
+    Y *modular.Int
 }
 ```
 
